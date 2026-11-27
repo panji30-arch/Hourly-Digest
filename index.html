@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hourly Digest — Google Tasks & WhatsApp Auto-Reminder</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Identity Services (GIS) OAuth 2.0 -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google Fonts: Inter, Playfair Display, Noto Serif Devanagari -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        editorial: ['Playfair Display', 'serif'],
+                        devanagari: ['Noto Serif Devanagari', 'serif'],
+                    },
+                    colors: {
+                        ivory: '#FAF8F5',
+                        sand: '#EFECE6',
+                        indigoDeep: '#1E1B4B',
+                        emeraldDeep: '#047857',
+                        whatsapp: '#25D366',
+                        saffron: '#D97706',
+                        coral: '#E11D48',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="bg-sand text-indigoDeep font-sans antialiased selection:bg-amber-200 selection:text-indigoDeep">
+
+    <!-- Toast Notification Stack -->
+    <div id="toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- ===================================================================== -->
+    <!-- SIMULATED INCOMING WHATSAPP BOT PUSH NOTIFICATION BANNER              -->
+    <!-- ===================================================================== -->
+    <div id="incoming-wa-banner" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-md bg-indigoDeep/95 backdrop-blur-md text-white p-3.5 rounded-2xl shadow-2xl border border-indigo-800 transition-all duration-300">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-whatsapp flex items-center justify-center shrink-0 text-indigoDeep shadow-sm">
+                <i data-lucide="bell-ring" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+                        WhatsApp • Incoming Bot Reminder
+                    </span>
+                    <span class="text-[11px] text-indigo-300">Just now</span>
+                </div>
+                <p id="banner-recipient" class="text-xs font-semibold text-indigo-100 mt-0.5 truncate">
+                    Delivered to +91 98765 43210
+                </p>
+                <p id="banner-snippet" class="text-xs text-indigo-200 line-clamp-2 mt-0.5 leading-relaxed">
+                    ⏰ Hourly Digest: Overdue & Today Google Tasks • Indian Express & The Hindu • Gita Shloka with Hindi meaning.
+                </p>
+                <div class="flex items-center gap-2 mt-2.5">
+                    <a href="#section-reminder" onclick="dismissIncomingBanner()" class="px-3 py-1.5 bg-whatsapp hover:bg-emerald-400 text-indigoDeep font-bold text-xs rounded-xl transition">
+                        View Bot Preview
+                    </a>
+                    <button onclick="dismissIncomingBanner()" class="px-3 py-1.5 bg-indigo-900 hover:bg-indigo-800 text-indigo-200 text-xs font-medium rounded-xl transition">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MOBILE-FIRST APP SHELL                                                -->
+    <!-- ===================================================================== -->
+    <div class="min-h-screen max-w-md mx-auto bg-ivory sm:my-4 sm:rounded-[2.25rem] sm:shadow-xl sm:border sm:border-stone-200/80 overflow-hidden flex flex-col relative pb-24">
+
+        <!-- ================================================================= -->
+        <!-- 1. STICKY TOP APP BAR                                             -->
+        <!-- ================================================================= -->
+        <header class="sticky top-0 z-30 bg-ivory/95 backdrop-blur-md border-b border-stone-200/80 px-4 pt-3.5 pb-3">
+            <div class="flex items-center justify-between gap-2">
+                <!-- Title & Live IST Clock -->
+                <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                        <span class="inline-flex h-2 w-2 rounded-full bg-emeraldDeep animate-pulse"></span>
+                        <span id="live-ist-clock" class="text-[10px] font-bold uppercase tracking-wider text-stone-500 truncate">
+                            IST • LIVE DIGEST
+                        </span>
+                    </div>
+                    <h1 class="text-lg font-extrabold tracking-tight text-indigoDeep mt-0.5 truncate">
+                        Hourly Digest
+                    </h1>
+                </div>
+
+                <!-- Right Controls: Compact Google Sign-In / Profile Pill + Test Ping -->
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="handleHeaderGoogleAction()" id="header-google-btn"
+                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-indigoDeep font-bold text-[11px] shadow-2xs transition active:scale-95 max-w-[138px]">
+                        <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
+                            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"/>
+                            <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"/>
+                            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"/>
+                        </svg>
+                        <span id="header-google-label" class="truncate">Sign in</span>
+                    </button>
+
+                    <button onclick="triggerTestPing()" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigoDeep hover:bg-indigo-900 text-white font-bold text-[11px] shadow-2xs transition active:scale-95">
+                        <i data-lucide="bell-ring" class="w-3.5 h-3.5 text-amber-300"></i>
+                        <span>Test Ping</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live 'Next WhatsApp Push in MM:SS' Countdown Pill -->
+            <div class="mt-2.5 bg-white border border-stone-200/90 rounded-2xl px-3 py-2 flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emeraldDeep flex items-center justify-center shrink-0">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="text-[11px] font-bold text-indigoDeep truncate">
+                            Next WhatsApp Push in <span id="countdown-timer" class="text-emeraldDeep font-extrabold tabular-nums">59:59</span>
+                        </div>
+                        <div id="header-recipient-label" class="text-[10px] font-medium text-stone-500 truncate">
+                            Auto-reminder to +91 98765 43210 • Every 1 Hr
+                        </div>
+                    </div>
+                </div>
+
+                <label class="inline-flex items-center cursor-pointer select-none shrink-0" title="Enable/Disable 1-Hour Auto Push">
+                    <input type="checkbox" id="master-push-toggle" checked onchange="saveReminderConfig()" class="sr-only peer">
+                    <div class="relative w-9 h-5 bg-stone-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emeraldDeep"></div>
+                </label>
+            </div>
+        </header>
+
+        <!-- ================================================================= -->
+        <!-- MAIN CONTENT STACK                                                -->
+        <!-- ================================================================= -->
+        <main class="flex-1 px-4 py-4 space-y-6">
+
+            <!-- ============================================================= -->
+            <!-- SECTION 1: GOOGLE TASKS & OVERDUE DASHBOARD                   -->
+            <!-- ============================================================= -->
+            <section id="section-tasks" class="scroll-mt-32">
+                <!-- Header & Sync Controls -->
+                <div class="flex items-start justify-between gap-2 mb-2.5">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-6 h-6 rounded-lg bg-indigo-100 text-indigoDeep flex items-center justify-center shrink-0">
+                                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                            </span>
+                            <h2 class="text-base font-extrabold text-indigoDeep truncate">Google Tasks & Overdue</h2>
+                        </div>
+                        <div id="sync-status-line" class="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                            <span class="w-1.5 h-1.5 rounded-full bg-saffron"></span>
+                            <span>Demo Mode • Sign in with Google for 2-way sync</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="openOAuthSetupModal()" class="px-2 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 font-bold text-[11px] flex items-center gap-1 transition active:scale-95" title="Configure Google OAuth Client ID">
+                            <i data-lucide="key-round" class="w-3 h-3 text-saffron"></i>
+                            <span>OAuth Setup</span>
+                        </button>
+                        <button onclick="manualSyncGoogleTasks()" class="p-1.5 rounded-xl bg-white hover:bg-stone-100 border border-stone-200 text-indigoDeep transition active:scale-95" title="Refresh / Sync Tasks">
+                            <i id="sync-spinner" data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emeraldDeep"></i>
+                        </button>
+                        <button onclick="openQuickImportModal()" class="p-1.5 rounded-xl bg-white hover:bg-stone-100 border border-stone-200 text-indigoDeep transition active:scale-95" title="Quick Import Tasks">
+                            <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-stone-700"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Google Account Connection Card -->
+                <div id="google-auth-card" class="bg-white border border-stone-200 rounded-2xl p-3 mb-3 shadow-2xs flex items-center justify-between gap-2.5">
+                    <div id="google-user-info" class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigoDeep flex items-center justify-center shrink-0">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold text-indigoDeep truncate">Connect Your Google Tasks</div>
+                            <div id="oauth-client-hint" class="text-[11px] text-stone-500 truncate">
+                                Two-way sync via Google Identity Services
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="google-auth-actions" class="shrink-0">
+                        <button onclick="initiateGoogleSignIn()" class="px-3 py-2 rounded-xl bg-indigoDeep hover:bg-indigo-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition active:scale-95">
+                            <span>Sign in with Google</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4-Card Stats Summary -->
+                <div class="grid grid-cols-4 gap-2 mb-3">
+                    <div class="bg-white border border-stone-200 rounded-2xl p-2.5 text-center shadow-2xs">
+                        <div id="stat-total" class="text-lg font-extrabold text-indigoDeep tabular-nums">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-stone-500">Total</div>
+                    </div>
+                    <div class="bg-white border border-emerald-200 rounded-2xl p-2.5 text-center shadow-2xs">
+                        <div id="stat-done" class="text-lg font-extrabold text-emeraldDeep tabular-nums">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-stone-500">Done</div>
+                    </div>
+                    <div class="bg-white border border-amber-200 rounded-2xl p-2.5 text-center shadow-2xs">
+                        <div id="stat-today" class="text-lg font-extrabold text-saffron tabular-nums">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-stone-500">Today</div>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 rounded-2xl p-2.5 text-center shadow-2xs">
+                        <div id="stat-overdue" class="text-lg font-extrabold text-coral tabular-nums">0</div>
+                        <div class="text-[10px] font-extrabold uppercase tracking-wider text-coral">Overdue</div>
+                    </div>
+                </div>
+
+                <!-- Daily Completion Progress Bar -->
+                <div class="bg-white border border-stone-200 rounded-2xl p-3 mb-3 shadow-2xs">
+                    <div class="flex items-center justify-between text-xs mb-1.5">
+                        <span class="font-semibold text-stone-700">Google Tasks Completion</span>
+                        <span id="stat-percent" class="font-extrabold text-indigoDeep tabular-nums">0%</span>
+                    </div>
+                    <div class="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                        <div id="stat-progress-fill" class="h-full bg-gradient-to-r from-indigoDeep via-saffron to-emeraldDeep rounded-full transition-all duration-500" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Dynamic Task List Filter Pills -->
+                <div id="task-filter-pills" class="flex items-center gap-1.5 mb-3 overflow-x-auto no-scrollbar"></div>
+
+                <!-- Quick Add Task Form (Writes directly to Google Tasks when signed in) -->
+                <form id="quick-add-task-form" class="bg-white border border-stone-200 rounded-2xl p-2 mb-3 shadow-2xs space-y-2">
+                    <div class="flex items-center gap-1.5">
+                        <input type="text" id="new-task-title" placeholder="Add a Google Task (syncs live)..." required
+                            class="flex-1 min-w-0 px-2.5 py-1.5 text-xs sm:text-sm bg-transparent text-indigoDeep placeholder:text-stone-400 focus:outline-none">
+                        <button type="submit" id="btn-add-task" class="px-3 py-2 rounded-xl bg-emeraldDeep hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1 transition active:scale-95 shrink-0">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span>Add</span>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-1.5 pt-1 border-t border-stone-100">
+                        <select id="new-task-list" aria-label="Google Task List" class="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-2 py-1.5 text-[11px] font-semibold text-indigoDeep focus:outline-none"></select>
+                        <select id="new-task-due" aria-label="Due Date" class="flex-1 bg-amber-50/70 border border-amber-200 rounded-xl px-2 py-1.5 text-[11px] font-semibold text-amber-950 focus:outline-none">
+                            <option value="today">Due: Today</option>
+                            <option value="tomorrow">Due: Tomorrow</option>
+                            <option value="overdue">Overdue / Yesterday</option>
+                        </select>
+                    </div>
+                </form>
+
+                <!-- Interactive Task List Container -->
+                <div id="tasks-container" class="space-y-2"></div>
+            </section>
+
+            <!-- ============================================================= -->
+            <!-- SECTION 2: HEADLINES & BREAKING (INDIAN EXPRESS & THE HINDU)  -->
+            <!-- ============================================================= -->
+            <section id="section-news" class="scroll-mt-32">
+                <div class="flex items-center justify-between mb-2.5">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-6 h-6 rounded-lg bg-rose-100 text-coral flex items-center justify-center">
+                            <i data-lucide="newspaper" class="w-3.5 h-3.5"></i>
+                        </span>
+                        <h2 class="text-base font-extrabold text-indigoDeep">Headlines & Breaking</h2>
+                    </div>
+                    <span class="text-[11px] font-semibold text-stone-500">IE • The Hindu</span>
+                </div>
+
+                <!-- Breaking News Alert Banner -->
+                <div class="bg-gradient-to-r from-rose-700 to-red-700 text-white rounded-2xl p-3.5 mb-3 shadow-xs">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <span class="px-2 py-0.5 bg-white text-coral font-extrabold text-[10px] uppercase tracking-wider rounded-lg">
+                            Breaking News
+                        </span>
+                        <span class="text-[11px] text-rose-100 font-medium">The Indian Express • 9m ago</span>
+                    </div>
+                    <p class="font-editorial text-sm sm:text-[15px] font-bold leading-snug">
+                        Cabinet approves next-phase digital public infrastructure & green energy grid corridor expansion across 14 states.
+                    </p>
+                </div>
+
+                <!-- Publication Filter Pills -->
+                <div class="flex items-center gap-1.5 mb-3">
+                    <button onclick="setNewsFilter('ALL')" data-nfilter="ALL" class="news-pill px-3 py-1.5 rounded-xl text-xs font-bold bg-indigoDeep text-white transition">
+                        All
+                    </button>
+                    <button onclick="setNewsFilter('The Indian Express')" data-nfilter="The Indian Express" class="news-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 transition">
+                        The Indian Express
+                    </button>
+                    <button onclick="setNewsFilter('The Hindu')" data-nfilter="The Hindu" class="news-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 transition">
+                        The Hindu
+                    </button>
+                </div>
+
+                <!-- Headlines Feed -->
+                <div id="news-container" class="space-y-2.5"></div>
+            </section>
+
+            <!-- ============================================================= -->
+            <!-- SECTION 3: GITA & RAMAYANA WISDOM                             -->
+            <!-- ============================================================= -->
+            <section id="section-wisdom" class="scroll-mt-32">
+                <div class="flex items-center justify-between mb-2.5">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-6 h-6 rounded-lg bg-amber-100 text-saffron flex items-center justify-center">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                        </span>
+                        <h2 class="text-base font-extrabold text-indigoDeep">Gita & Ramayana Wisdom</h2>
+                    </div>
+                    <button onclick="nextShloka()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-amber-50 border border-amber-200 text-amber-950 font-bold text-xs shadow-2xs transition active:scale-95">
+                        <i data-lucide="shuffle" class="w-3.5 h-3.5 text-saffron"></i>
+                        <span>Next Shloka</span>
+                    </button>
+                </div>
+
+                <!-- Scripture Filter Pills -->
+                <div class="flex items-center gap-1.5 mb-3">
+                    <button onclick="setWisdomFilter('ALL')" data-wfilter="ALL" class="wisdom-pill px-3 py-1.5 rounded-xl text-xs font-bold bg-saffron text-white transition">
+                        All
+                    </button>
+                    <button onclick="setWisdomFilter('Bhagavad Gita')" data-wfilter="Bhagavad Gita" class="wisdom-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 transition">
+                        Bhagavad Gita
+                    </button>
+                    <button onclick="setWisdomFilter('Ramayana')" data-wfilter="Ramayana" class="wisdom-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 transition">
+                        Ramayana
+                    </button>
+                </div>
+
+                <!-- Sacred Verse Card -->
+                <div class="bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-white border border-amber-200 rounded-2xl p-4 shadow-2xs">
+                    <div class="flex items-center justify-between gap-2 mb-2.5">
+                        <span id="wisdom-badge" class="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-saffron text-white">
+                            श्रीमद्भगवद्गीता • अध्याय 2, श्लोक 47
+                        </span>
+                        <span id="wisdom-category-tag" class="text-[11px] font-semibold text-amber-900">
+                            Bhagavad Gita
+                        </span>
+                    </div>
+
+                    <!-- Sanskrit / Awadhi Verse -->
+                    <blockquote id="wisdom-verse" class="font-devanagari text-base sm:text-lg font-bold text-indigoDeep leading-relaxed whitespace-pre-line mb-2"></blockquote>
+
+                    <!-- Transliteration -->
+                    <p id="wisdom-translit" class="text-xs italic text-amber-950/75 leading-relaxed mb-3"></p>
+
+                    <!-- Hindi Meaning -->
+                    <div class="bg-white border border-amber-200/80 rounded-xl p-3">
+                        <div class="text-[11px] font-bold text-saffron mb-1 flex items-center gap-1">
+                            <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+                            <span>हिंदी भावार्थ (Hindi Meaning):</span>
+                        </div>
+                        <p id="wisdom-hindi" class="font-devanagari text-sm text-indigoDeep leading-relaxed"></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================= -->
+            <!-- SECTION 4: AUTOMATED 1-HOUR WHATSAPP SELF-REMINDER            -->
+            <!-- ============================================================= -->
+            <section id="section-reminder" class="scroll-mt-32">
+                <div class="flex items-center justify-between mb-2.5">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-6 h-6 rounded-lg bg-emerald-100 text-emeraldDeep flex items-center justify-center">
+                            <i data-lucide="bot" class="w-3.5 h-3.5"></i>
+                        </span>
+                        <h2 class="text-base font-extrabold text-indigoDeep">1-Hour WhatsApp Self-Reminder</h2>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-900">
+                        Auto-Push Only
+                    </span>
+                </div>
+
+                <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-4">
+                    <!-- Recipient +91 Number & Active IST Window -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label for="wa-phone-input" class="block text-[11px] font-bold text-stone-700 mb-1">
+                                Your WhatsApp Number (+91)
+                            </label>
+                            <input type="tel" id="wa-phone-input" value="+91 98765 43210" oninput="saveReminderConfig()"
+                                class="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-bold text-indigoDeep focus:outline-none focus:ring-2 focus:ring-emeraldDeep">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-stone-700 mb-1">
+                                Active IST Window
+                            </label>
+                            <div class="flex items-center gap-1.5">
+                                <input type="time" id="wa-start-time" value="07:00" onchange="saveReminderConfig()"
+                                    class="w-full px-2 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold text-indigoDeep">
+                                <span class="text-xs text-stone-400">to</span>
+                                <input type="time" id="wa-end-time" value="23:00" onchange="saveReminderConfig()"
+                                    class="w-full px-2 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold text-indigoDeep">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Module Toggles -->
+                    <div class="space-y-2">
+                        <div class="text-[11px] font-bold text-stone-700">Included in Every Hourly Bot Reminder:</div>
+                        <div class="grid grid-cols-1 gap-2">
+                            <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 cursor-pointer">
+                                <span class="text-xs font-semibold text-indigoDeep">1. Overdue & Pending Google Tasks</span>
+                                <input type="checkbox" id="toggle-tasks-mod" checked onchange="saveReminderConfig()" class="sr-only peer">
+                                <div class="relative w-8 h-4.5 bg-stone-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emeraldDeep"></div>
+                            </label>
+                            <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 cursor-pointer">
+                                <span class="text-xs font-semibold text-indigoDeep">2. Indian Express & The Hindu Headlines</span>
+                                <input type="checkbox" id="toggle-news-mod" checked onchange="saveReminderConfig()" class="sr-only peer">
+                                <div class="relative w-8 h-4.5 bg-stone-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emeraldDeep"></div>
+                            </label>
+                            <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 cursor-pointer">
+                                <span class="text-xs font-semibold text-indigoDeep">3. Gita / Ramayana Shloka + Hindi Meaning</span>
+                                <input type="checkbox" id="toggle-wisdom-mod" checked onchange="saveReminderConfig()" class="sr-only peer">
+                                <div class="relative w-8 h-4.5 bg-stone-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emeraldDeep"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Live Incoming WhatsApp Bot Bubble Preview -->
+                    <div class="rounded-2xl overflow-hidden border border-stone-200">
+                        <div class="bg-[#075E54] text-white px-3.5 py-2.5 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-whatsapp text-indigoDeep flex items-center justify-center font-extrabold text-xs">
+                                    HD
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold leading-none">Hourly Digest Bot</div>
+                                    <div class="text-[10px] text-emerald-200 mt-0.5">Incoming Self-Reminder Preview</div>
+                                </div>
+                            </div>
+                            <span class="text-[10px] font-semibold bg-white/10 px-2 py-0.5 rounded-lg">Live Payload</span>
+                        </div>
+                        <div class="bg-[#EFEAE2] p-3">
+                            <div class="bg-white rounded-2xl rounded-tl-xs p-3 shadow-2xs border border-stone-200/80 max-w-[96%]">
+                                <pre id="live-bot-bubble" class="whitespace-pre-wrap font-sans text-xs leading-relaxed text-indigoDeep"></pre>
+                                <div class="flex items-center justify-end gap-1 mt-1 text-[10px] text-stone-400">
+                                    <span id="bubble-timestamp">8:12 PM</span>
+                                    <span>• Automated</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Background 1-Hour Trigger (Google Apps Script) -->
+                    <div class="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-3.5 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-xs font-extrabold text-indigoDeep flex items-center gap-1.5">
+                                <i data-lucide="terminal" class="w-4 h-4 text-emeraldDeep"></i>
+                                <span>Background 1-Hr Trigger (Apps Script)</span>
+                            </span>
+                            <button onclick="copyAppsScriptCode()" class="px-2.5 py-1.5 rounded-xl bg-indigoDeep hover:bg-indigo-900 text-white text-[11px] font-bold flex items-center gap-1 transition active:scale-95 shrink-0">
+                                <i data-lucide="copy" class="w-3 h-3"></i>
+                                <span>Copy Script</span>
+                            </button>
+                        </div>
+
+                        <p class="text-[11px] text-stone-700 leading-relaxed">
+                            To keep receiving hourly WhatsApp reminders even when this browser tab is closed, paste this into <strong>script.google.com</strong>, enable <strong>Services (+) → Google Tasks API</strong>, and set a <strong>1-hour Time-driven Trigger</strong> on <code class="bg-white px-1 rounded border border-indigo-200">sendHourlyDigest</code>.
+                        </p>
+
+                        <pre id="apps-script-code" class="bg-indigoDeep text-emerald-300 text-[10px] leading-relaxed p-3 rounded-xl overflow-x-auto font-mono max-h-56"></pre>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- ================================================================= -->
+        <!-- 6. BOTTOM MOBILE NAVIGATION BAR                                   -->
+        <!-- ================================================================= -->
+        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-30 bg-white/95 backdrop-blur-md border-t border-stone-200 px-2 py-2 flex items-center justify-around">
+            <a href="#section-tasks" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-indigoDeep font-bold text-[11px]">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-indigoDeep"></i>
+                <span>Tasks</span>
+            </a>
+            <a href="#section-news" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-stone-600 hover:text-indigoDeep font-semibold text-[11px] transition">
+                <i data-lucide="newspaper" class="w-4 h-4 text-coral"></i>
+                <span>News</span>
+            </a>
+            <a href="#section-wisdom" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-stone-600 hover:text-indigoDeep font-semibold text-[11px] transition">
+                <i data-lucide="sparkles" class="w-4 h-4 text-saffron"></i>
+                <span>Wisdom</span>
+            </a>
+            <a href="#section-reminder" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl text-emeraldDeep font-bold text-[11px] transition">
+                <i data-lucide="bot" class="w-4 h-4"></i>
+                <span>WhatsApp Bot</span>
+            </a>
+        </nav>
+
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 1: GOOGLE OAUTH 2.0 SETUP MODAL                                 -->
+    <!-- ===================================================================== -->
+    <div id="oauth-setup-modal" class="hidden fixed inset-0 z-50 bg-indigoDeep/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-4 py-3.5 border-b border-stone-200 flex items-center justify-between shrink-0">
+                <div>
+                    <h3 class="text-sm font-extrabold text-indigoDeep">Google OAuth 2.0 Setup</h3>
+                    <p class="text-[11px] text-stone-500">Connect native Google Login & Tasks REST API</p>
+                </div>
+                <button onclick="closeOAuthSetupModal()" class="p-1.5 rounded-full hover:bg-stone-100 text-stone-500">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-4 space-y-3 overflow-y-auto">
+                <!-- Warning if opened via file:// -->
+                <div id="file-protocol-warning" class="hidden bg-rose-50 border border-rose-300 rounded-2xl p-3 text-xs text-rose-900 space-y-1">
+                    <div class="font-extrabold flex items-center gap-1.5 text-coral">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+                        <span>Opened via file:// Protocol</span>
+                    </div>
+                    <p class="text-[11px] leading-relaxed">
+                        Google Identity Services blocks <code class="bg-white px-1 rounded">file://</code> origins for security. Serve this file over <code class="bg-white px-1 rounded">http://localhost</code> (e.g., VS Code Live Server or <code class="bg-white px-1 rounded">python3 -m http.server</code>) or host it on HTTPS.
+                    </p>
+                </div>
+
+                <!-- Client ID Input -->
+                <div>
+                    <label for="google-client-id-input" class="block text-xs font-bold text-indigoDeep mb-1">
+                        Google Cloud OAuth Client ID
+                    </label>
+                    <input type="text" id="google-client-id-input" placeholder="1234567890-abcxyz.apps.googleusercontent.com"
+                        class="w-full px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-300 text-xs font-mono text-indigoDeep focus:outline-none focus:ring-2 focus:ring-indigoDeep">
+                    <div class="text-[10px] text-stone-500 mt-1">
+                        Current Origin: <code id="current-origin-display" class="bg-stone-100 px-1 rounded font-mono"></code>
+                    </div>
+                </div>
+
+                <!-- 4-Step Setup Instructions -->
+                <div class="bg-ivory border border-stone-200 rounded-2xl p-3 space-y-1.5">
+                    <div class="text-[11px] font-extrabold text-indigoDeep">4-Step One-Time Setup:</div>
+                    <ol class="text-[11px] text-stone-700 space-y-1.5 list-decimal list-inside leading-relaxed">
+                        <li>Open <strong>console.cloud.google.com</strong>, create a project, go to <strong>APIs & Services → Library</strong>, and enable <strong>Google Tasks API</strong>.</li>
+                        <li>Configure <strong>OAuth consent screen</strong> (External), add your Gmail under <strong>Test users</strong>, and save.</li>
+                        <li>Go to <strong>Credentials → Create Credentials → OAuth client ID</strong>, pick <strong>Web application</strong>, and add your current origin above under <strong>Authorized JavaScript origins</strong>.</li>
+                        <li>Paste the generated <code class="bg-white px-1 rounded border border-stone-200">.apps.googleusercontent.com</code> Client ID above and click <strong>Save & Sign In</strong>.</li>
+                    </ol>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 pt-1">
+                    <button onclick="clearSavedClientId()" class="px-3 py-2 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-50">
+                        Clear ID
+                    </button>
+                    <button onclick="saveClientIdAndSignIn()" class="px-4 py-2 rounded-xl bg-indigoDeep hover:bg-indigo-900 text-white text-xs font-bold shadow-xs flex items-center gap-1.5">
+                        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+                        <span>Save & Sign In</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 2: QUICK IMPORT TASKS MODAL                                     -->
+    <!-- ===================================================================== -->
+    <div id="quick-import-modal" class="hidden fixed inset-0 z-50 bg-indigoDeep/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden">
+            <div class="px-4 py-3.5 border-b border-stone-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-extrabold text-indigoDeep">Quick Import Tasks</h3>
+                    <p class="text-[11px] text-stone-500">Paste checklist lines (pushes to Google Tasks if signed in)</p>
+                </div>
+                <button onclick="closeQuickImportModal()" class="p-1.5 rounded-full hover:bg-stone-100 text-stone-500">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="flex items-center gap-2">
+                    <select id="import-list-select" class="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-indigoDeep"></select>
+                    <select id="import-due-select" class="flex-1 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-amber-950">
+                        <option value="today">Due: Today</option>
+                        <option value="tomorrow">Due: Tomorrow</option>
+                        <option value="overdue">Overdue / Yesterday</option>
+                    </select>
+                </div>
+                <textarea id="raw-tasks-textarea" rows="4" placeholder="- Submit monthly GST return&#10;- Renew family health insurance&#10;- Review sprint architecture doc"
+                    class="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 text-xs text-indigoDeep focus:outline-none focus:ring-2 focus:ring-indigoDeep"></textarea>
+                <div class="flex items-center justify-end gap-2">
+                    <button onclick="closeQuickImportModal()" class="px-3.5 py-2 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600">
+                        Cancel
+                    </button>
+                    <button onclick="executeQuickImport()" class="px-4 py-2 rounded-xl bg-emeraldDeep hover:bg-emerald-800 text-white text-xs font-bold">
+                        Import Tasks
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. STORAGE KEYS & APPLICATION STATE
+        // =========================================================================
+        const STORAGE_KEYS = {
+            CLIENT_ID: 'hd_google_oauth_client_id_v1',
+            DEMO_TASKS: 'hd_demo_gtasks_v1',
+            CONFIG: 'hd_wa_reminder_cfg_v1'
+        };
+
+        const GOOGLE_SCOPES = [
+            'https://www.googleapis.com/auth/tasks',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/userinfo.email'
+        ].join(' ');
+
+        const TASKS_API_BASE = 'https://tasks.googleapis.com/tasks/v1';
+
+        // Demo lists & tasks used when signed out
+        const defaultDemoLists = [
+            { id: 'list_my', title: 'My Tasks' },
+            { id: 'list_work', title: 'Work' },
+            { id: 'list_personal', title: 'Personal' }
+        ];
+
+        const defaultDemoTasks = [
+            {
+                id: 'demo_1',
+                listId: 'list_work',
+                listTitle: 'Work',
+                title: 'Submit Q3 GST & TDS reconciliation statement',
+                isOverdue: true,
+                dueLabel: 'Overdue • Yesterday',
+                completed: false
+            },
+            {
+                id: 'demo_2',
+                listId: 'list_personal',
+                listTitle: 'Personal',
+                title: 'Renew family health insurance & upload KYC',
+                isOverdue: true,
+                dueLabel: 'Overdue • 2d ago',
+                completed: false
+            },
+            {
+                id: 'demo_3',
+                listId: 'list_work',
+                listTitle: 'Work',
+                title: 'Review sprint architecture doc & approve PRs',
+                isOverdue: false,
+                dueLabel: 'Today',
+                completed: false
+            },
+            {
+                id: 'demo_4',
+                listId: 'list_my',
+                listTitle: 'My Tasks',
+                title: 'Book weekend Shatabdi tickets & order groceries',
+                isOverdue: false,
+                dueLabel: 'Today',
+                completed: false
+            },
+            {
+                id: 'demo_5',
+                listId: 'list_my',
+                listTitle: 'My Tasks',
+                title: 'Morning 30-minute walk & Pranayama',
+                isOverdue: false,
+                dueLabel: 'Done',
+                completed: true
+            }
+        ];
+
+        const headlinesData = [
+            {
+                id: 'n1',
+                source: 'The Indian Express',
+                tagClass: 'bg-rose-50 text-coral border-rose-200',
+                section: 'Economy & Tech',
+                time: '12 mins ago',
+                headline: 'India Semiconductor Mission clears three new ATMP packaging units to strengthen domestic chip supply chain',
+                summary: 'Industry officials confirmed commercial production timelines remain on track with state-level power and water incentives.'
+            },
+            {
+                id: 'n2',
+                source: 'The Hindu',
+                tagClass: 'bg-indigo-50 text-indigoDeep border-indigo-200',
+                section: 'National • Energy',
+                time: '27 mins ago',
+                headline: 'Central Electricity Authority notifies new grid-scale battery storage guidelines for round-the-clock renewables',
+                summary: 'The framework mandates peak-hour discharge readiness across solar-wind hybrid parks by next fiscal year.'
+            },
+            {
+                id: 'n3',
+                source: 'The Indian Express',
+                tagClass: 'bg-rose-50 text-coral border-rose-200',
+                section: 'AI & Governance',
+                time: '41 mins ago',
+                headline: 'Bhashini & IndiaAI expand subsidized GPU compute grants for Indic healthcare and agritech startups',
+                summary: 'Selected teams will receive dedicated inference credits to deploy offline-capable voice assistants in 22 scheduled languages.'
+            },
+            {
+                id: 'n4',
+                source: 'The Hindu',
+                tagClass: 'bg-indigo-50 text-indigoDeep border-indigo-200',
+                section: 'Science & Space',
+                time: '54 mins ago',
+                headline: 'ISRO completes long-duration cryogenic engine qualification test at Mahendragiri propulsion complex',
+                summary: 'All propulsion parameters matched pre-test simulations, paving the way for upcoming heavy-lift commercial launches.'
+            }
+        ];
+
+        const wisdomVerses = [
+            {
+                scripture: 'Bhagavad Gita',
+                reference: 'श्रीमद्भगवद्गीता • अध्याय 2, श्लोक 47',
+                verse: 'कर्मण्येवाधिकारस्ते मा फलेषु कदाचन।\nमा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि॥',
+                transliteration: "Karmanye vadhikaraste ma phaleshu kadachana, ma karma-phala-hetur bhur ma te sango 'stv akarmani.",
+                hindi: 'तुम्हारा अधिकार केवल कर्म करने में है, उसके फलों में कभी नहीं। इसलिए न तो तुम कर्म के फल की इच्छा से प्रेरित हो, और न ही तुम्हारी आसक्ति कर्म न करने में हो।'
+            },
+            {
+                scripture: 'Ramayana',
+                reference: 'श्रीरामचरितमानस • सुन्दरकाण्ड',
+                verse: 'प्रबिसि नगर कीजे सब काजा।\nहृदयँ राखि कोसलपुर राजा॥',
+                transliteration: 'Prabisi nagar keeje sab kaaja, hridayan raakhi Kosalpur raaja.',
+                hindi: 'अयोध्यापुरी के राजा श्री रामचंद्रजी को हृदय में धारण करके नगर में प्रवेश कीजिए और अपने सभी कार्य कीजिए—ईश्वर के स्मरण और आत्मविश्वास से हर कठिन कार्य सिद्ध होता है।'
+            },
+            {
+                scripture: 'Bhagavad Gita',
+                reference: 'श्रीमद्भगवद्गीता • अध्याय 6, श्लोक 5',
+                verse: 'उद्धरेदात्मनात्मानं नात्मानमवसादयेत्।\nआत्मैव ह्यात्मनो बन्धुरात्मैव रिपुरात्मनः॥',
+                transliteration: 'Uddhared atmanatmanam natmanam avasadayet, atmaiva hy atmano bandhur atmaiva ripur atmanah.',
+                hindi: 'मनुष्य को चाहिए कि वह स्वयं अपना उद्धार करे और अपने आप को कभी निराश न होने दे; क्योंकि यह मनुष्य स्वयं ही अपना सबसे बड़ा मित्र है और स्वयं ही अपना शत्रु भी है।'
+            },
+            {
+                scripture: 'Ramayana',
+                reference: 'श्रीरामचरितमानस • लंकाकाण्ड (धर्मरथ)',
+                verse: 'सौरज धीरज तेहि रथ चाका।\nसत्य सील दृढ़ ध्वजा पताका॥',
+                transliteration: 'Sauraj dheeraj tehi rath chaaka, satya seel dridh dhwaja pataaka.',
+                hindi: 'श्रीराम कहते हैं—जीवन रूपी विजय रथ में साहस (शौर्य) और धैर्य दो पहिए हैं, तथा सत्य और सदाचार उसकी मजबूत ध्वजा हैं। इन्हीं सद्गुणों से हर चुनौती पर विजय प्राप्त होती है।'
+            }
+        ];
+
+        // Runtime State
+        let tokenClient = null;
+        let accessToken = null;
+        let googleUser = null;
+        let taskLists = [...defaultDemoLists];
+        let tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.DEMO_TASKS)) || [...defaultDemoTasks];
+        let currentTaskFilter = 'ALL';
+        let currentNewsFilter = 'ALL';
+        let currentWisdomFilter = 'ALL';
+        let currentWisdomIndex = 0;
+        let countdownSecs = 3600;
+
+        // =========================================================================
+        // 2. INITIALIZATION & LIVE IST CLOCK / COUNTDOWN
+        // =========================================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            loadReminderConfig();
+            updateAuthUI();
+            renderTaskListControls();
+            renderTasks();
+            renderHeadlines();
+            renderWisdom();
+            renderAppsScriptTemplate();
+            updateBotBubblePreview();
+            startIstClockAndCountdown();
+            lucide.createIcons();
+
+            if (window.location.protocol === 'file:') {
+                document.getElementById('file-protocol-warning').classList.remove('hidden');
+            }
+        });
+
+        function startIstClockAndCountdown() {
+            const updateClock = () => {
+                const now = new Date();
+                const formatted = now.toLocaleString('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                document.getElementById('live-ist-clock').textContent = `${formatted.toUpperCase()} IST`;
+            };
+            updateClock();
+            setInterval(updateClock, 15000);
+
+            const timerEl = document.getElementById('countdown-timer');
+            setInterval(() => {
+                countdownSecs--;
+                if (countdownSecs <= 0) {
+                    countdownSecs = 3600;
+                    if (document.getElementById('master-push-toggle').checked) {
+                        nextShloka(true);
+                        triggerTestPing();
+                    }
+                }
+                const mins = String(Math.floor(countdownSecs / 60)).padStart(2, '0');
+                const secs = String(countdownSecs % 60).padStart(2, '0');
+                timerEl.textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // =========================================================================
+        // 3. GOOGLE IDENTITY SERVICES (OAUTH 2.0) & TWO-WAY GOOGLE TASKS API
+        // =========================================================================
+        function getSavedClientId() {
+            return (localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || '').trim();
+        }
+
+        function openOAuthSetupModal() {
+            document.getElementById('google-client-id-input').value = getSavedClientId();
+            document.getElementById('current-origin-display').textContent = window.location.origin;
+            document.getElementById('oauth-setup-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeOAuthSetupModal() {
+            document.getElementById('oauth-setup-modal').classList.add('hidden');
+        }
+
+        function saveClientIdAndSignIn() {
+            const clientId = document.getElementById('google-client-id-input').value.trim();
+            if (!clientId || !clientId.includes('.apps.googleusercontent.com')) {
+                showToast('Enter a valid .apps.googleusercontent.com Client ID');
+                return;
+            }
+            localStorage.setItem(STORAGE_KEYS.CLIENT_ID, clientId);
+            tokenClient = null; // Force re-init with new Client ID
+            closeOAuthSetupModal();
+            updateAuthUI();
+            initiateGoogleSignIn();
+        }
+
+        function clearSavedClientId() {
+            localStorage.removeItem(STORAGE_KEYS.CLIENT_ID);
+            document.getElementById('google-client-id-input').value = '';
+            signOutGoogle(true);
+            closeOAuthSetupModal();
+            showToast('OAuth Client ID cleared');
+        }
+
+        function handleHeaderGoogleAction() {
+            if (accessToken && googleUser) {
+                signOutGoogle();
+            } else {
+                initiateGoogleSignIn();
+            }
+        }
+
+        function initiateGoogleSignIn() {
+            if (window.location.protocol === 'file:') {
+                openOAuthSetupModal();
+                showToast('Google Login requires http:// or https://');
+                return;
+            }
+
+            const clientId = getSavedClientId();
+            if (!clientId) {
+                openOAuthSetupModal();
+                showToast('Paste your Google OAuth Client ID first');
+                return;
+            }
+
+            if (!window.google || !google.accounts || !google.accounts.oauth2) {
+                showToast('Google Identity script still loading — try again in a second');
+                return;
+            }
+
+            if (!tokenClient) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: GOOGLE_SCOPES,
+                    callback: async (tokenResponse) => {
+                        if (tokenResponse.error) {
+                            showToast(`Google Auth Error: ${tokenResponse.error}`);
+                            return;
+                        }
+                        accessToken = tokenResponse.access_token;
+                        await fetchGoogleUserProfile();
+                        await fetchLiveGoogleTasks();
+                    }
+                });
+            }
+
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        async function fetchGoogleUserProfile() {
+            try {
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                if (res.ok) {
+                    googleUser = await res.json();
+                }
+            } catch (e) {
+                console.warn('Could not load Google user profile:', e);
+            }
+            updateAuthUI();
+        }
+
+        function signOutGoogle(silent = false) {
+            if (accessToken && window.google && google.accounts && google.accounts.oauth2) {
+                google.accounts.oauth2.revoke(accessToken, () => {});
+            }
+            accessToken = null;
+            googleUser = null;
+            taskLists = [...defaultDemoLists];
+            tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.DEMO_TASKS)) || [...defaultDemoTasks];
+            currentTaskFilter = 'ALL';
+            updateAuthUI();
+            renderTaskListControls();
+            renderTasks();
+            updateBotBubblePreview();
+            if (!silent) showToast('Signed out • Switched to Demo Mode');
+        }
+
+        function updateAuthUI() {
+            const clientId = getSavedClientId();
+            const headerBtn = document.getElementById('header-google-btn');
+            const headerLabel = document.getElementById('header-google-label');
+            const syncLine = document.getElementById('sync-status-line');
+            const userInfoEl = document.getElementById('google-user-info');
+            const authActionsEl = document.getElementById('google-auth-actions');
+
+            if (accessToken) {
+                const displayName = googleUser?.given_name || googleUser?.name || 'Connected';
+                const email = googleUser?.email || 'Google Tasks API Active';
+                const avatarHtml = googleUser?.picture
+                    ? `<img src="${escapeHtml(googleUser.picture)}" alt="Avatar" class="w-9 h-9 rounded-xl object-cover border border-emerald-200 shrink-0">`
+                    : `<div class="w-9 h-9 rounded-xl bg-emerald-100 text-emeraldDeep font-extrabold flex items-center justify-center shrink-0">${escapeHtml(displayName[0])}</div>`;
+
+                headerBtn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emeraldDeep font-bold text-[11px] shadow-2xs transition active:scale-95 max-w-[138px]';
+                headerLabel.textContent = displayName;
+
+                syncLine.className = 'mt-1 flex items-center gap-1.5 text-[11px] font-bold text-emeraldDeep';
+                syncLine.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emeraldDeep animate-pulse"></span><span>Live 2-Way Sync • Google Tasks API</span>`;
+
+                userInfoEl.innerHTML = `
+                    ${avatarHtml}
+                    <div class="min-w-0">
+                        <div class="text-xs font-extrabold text-indigoDeep truncate">${escapeHtml(googleUser?.name || 'Google Account')}</div>
+                        <div class="text-[11px] text-emeraldDeep font-medium truncate">${escapeHtml(email)}</div>
+                    </div>
+                `;
+
+                authActionsEl.innerHTML = `
+                    <button onclick="signOutGoogle()" class="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-rose-50 hover:text-coral border border-stone-200 text-stone-700 font-bold text-xs transition active:scale-95">
+                        Sign Out
+                    </button>
+                `;
+            } else {
+                headerBtn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-indigoDeep font-bold text-[11px] shadow-2xs transition active:scale-95 max-w-[138px]';
+                headerLabel.textContent = 'Sign in';
+
+                syncLine.className = 'mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800';
+                syncLine.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-saffron"></span><span>Demo Mode • Sign in with Google for 2-way sync</span>`;
+
+                const hintText = clientId
+                    ? `Client ID saved (${clientId.slice(0, 14)}...)`
+                    : 'Click OAuth Setup to add your Client ID';
+
+                userInfoEl.innerHTML = `
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigoDeep flex items-center justify-center shrink-0">
+                        <i data-lucide="user-check" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold text-indigoDeep truncate">Connect Your Google Tasks</div>
+                        <div class="text-[11px] text-stone-500 truncate">${escapeHtml(hintText)}</div>
+                    </div>
+                `;
+
+                authActionsEl.innerHTML = `
+                    <button onclick="initiateGoogleSignIn()" class="px-3 py-2 rounded-xl bg-indigoDeep hover:bg-indigo-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition active:scale-95">
+                        <span>Sign in with Google</span>
+                    </button>
+                `;
+            }
+            lucide.createIcons();
+        }
+
+        async function googleApiFetch(path, options = {}) {
+            if (!accessToken) throw new Error('Not authenticated');
+            const res = await fetch(`${TASKS_API_BASE}${path}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    ...(options.headers || {})
+                }
+            });
+            if (res.status === 401) {
+                signOutGoogle(true);
+                showToast('Google session expired — please sign in again');
+                throw new Error('Unauthorized');
+            }
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Google Tasks API ${res.status}: ${errText}`);
+            }
+            if (res.status === 204) return null;
+            return res.json();
+        }
+
+        async function manualSyncGoogleTasks() {
+            const spinner = document.getElementById('sync-spinner');
+            spinner.classList.add('animate-spin');
+            try {
+                if (accessToken) {
+                    await fetchLiveGoogleTasks();
+                    showToast('Synced live with Google Tasks!');
+                } else {
+                    renderTasks();
+                    showToast('Demo tasks refreshed. Sign in with Google for live sync.');
+                }
+            } finally {
+                setTimeout(() => spinner.classList.remove('animate-spin'), 350);
+            }
+        }
+
+        async function fetchLiveGoogleTasks() {
+            const spinner = document.getElementById('sync-spinner');
+            spinner.classList.add('animate-spin');
+            try {
+                const listsData = await googleApiFetch('/users/@me/lists');
+                const fetchedLists = (listsData.items || []).map(l => ({ id: l.id, title: l.title }));
+                if (fetchedLists.length > 0) {
+                    taskLists = fetchedLists;
+                }
+
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+
+                const allFetchedTasks = [];
+                for (const list of taskLists) {
+                    const itemsData = await googleApiFetch(`/lists/${encodeURIComponent(list.id)}/tasks?showCompleted=true&showHidden=false&maxResults=100`);
+                    const items = itemsData.items || [];
+                    items.forEach(item => {
+                        if (!item.title || !item.title.trim()) return;
+                        const completed = item.status === 'completed';
+                        const dueDate = item.due ? new Date(item.due) : null;
+                        // Compare calendar day in UTC/local safely
+                        let isOverdue = false;
+                        let dueLabel = completed ? 'Done' : 'Today';
+
+                        if (dueDate) {
+                            const dueDay = new Date(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+                            isOverdue = !completed && dueDay < todayStart;
+                            const formattedDate = dueDay.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                            if (completed) {
+                                dueLabel = 'Done';
+                            } else if (isOverdue) {
+                                dueLabel = `Overdue • ${formattedDate}`;
+                            } else if (dueDay.getTime() === todayStart.getTime()) {
+                                dueLabel = 'Today';
+                            } else {
+                                dueLabel = `Due • ${formattedDate}`;
+                            }
+                        }
+
+                        allFetchedTasks.push({
+                            id: item.id,
+                            listId: list.id,
+                            listTitle: list.title,
+                            title: item.title,
+                            isOverdue,
+                            dueLabel,
+                            completed
+                        });
+                    });
+                }
+
+                tasks = allFetchedTasks;
+                renderTaskListControls();
+                renderTasks();
+                updateBotBubblePreview();
+            } catch (err) {
+                console.error('Error fetching Google Tasks:', err);
+                showToast('Failed to fetch Google Tasks');
+            } finally {
+                spinner.classList.remove('animate-spin');
+            }
+        }
+
+        // =========================================================================
+        // 4. TASK LIST CONTROLS, STATS & TWO-WAY CRUD OPERATIONS
+        // =========================================================================
+        function renderTaskListControls() {
+            // 1. Dynamic Filter Pills
+            const pillsContainer = document.getElementById('task-filter-pills');
+            const pillsHtml = [
+                `<button onclick="setTaskFilter('ALL')" data-tfilter="ALL" class="task-pill px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition">All Lists</button>`,
+                `<button onclick="setTaskFilter('OVERDUE')" data-tfilter="OVERDUE" class="task-pill px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition">⚠️ Overdue</button>`,
+                ...taskLists.map(l =>
+                    `<button onclick="setTaskFilter('${escapeHtml(l.id)}')" data-tfilter="${escapeHtml(l.id)}" class="task-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition">${escapeHtml(l.title)}</button>`
+                )
+            ];
+            pillsContainer.innerHTML = pillsHtml.join('');
+            highlightActiveTaskPill();
+
+            // 2. Populate Quick Add & Quick Import List Dropdowns
+            const optionsHtml = taskLists.map(l =>
+                `<option value="${escapeHtml(l.id)}">List: ${escapeHtml(l.title)}</option>`
+            ).join('');
+            document.getElementById('new-task-list').innerHTML = optionsHtml;
+            document.getElementById('import-list-select').innerHTML = optionsHtml;
+        }
+
+        function setTaskFilter(filter) {
+            currentTaskFilter = filter;
+            highlightActiveTaskPill();
+            renderTasks();
+        }
+
+        function highlightActiveTaskPill() {
+            document.querySelectorAll('.task-pill').forEach(btn => {
+                const active = btn.dataset.tfilter === currentTaskFilter;
+                if (active) {
+                    btn.className = 'task-pill px-3 py-1.5 rounded-xl text-xs font-bold bg-indigoDeep text-white whitespace-nowrap transition';
+                } else if (btn.dataset.tfilter === 'OVERDUE') {
+                    btn.className = 'task-pill px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-coral border border-rose-200 whitespace-nowrap transition';
+                } else {
+                    btn.className = 'task-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 whitespace-nowrap transition';
+                }
+            });
+        }
+
+        function renderTasks() {
+            const total = tasks.length;
+            const done = tasks.filter(t => t.completed).length;
+            const overdueCount = tasks.filter(t => !t.completed && t.isOverdue).length;
+            const todayCount = tasks.filter(t => !t.completed && !t.isOverdue).length;
+            const pct = total === 0 ? 100 : Math.round((done / total) * 100);
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-done').textContent = done;
+            document.getElementById('stat-today').textContent = todayCount;
+            document.getElementById('stat-overdue').textContent = overdueCount;
+            document.getElementById('stat-percent').textContent = `${pct}%`;
+            document.getElementById('stat-progress-fill').style.width = `${pct}%`;
+
+            let visible = [...tasks];
+            if (currentTaskFilter === 'OVERDUE') {
+                visible = visible.filter(t => !t.completed && t.isOverdue);
+            } else if (currentTaskFilter !== 'ALL') {
+                visible = visible.filter(t => t.listId === currentTaskFilter);
+            }
+
+            // Sort: Overdue first -> Pending Today -> Completed
+            visible.sort((a, b) => {
+                if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+                return 0;
+            });
+
+            const container = document.getElementById('tasks-container');
+            if (visible.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white border border-stone-200 rounded-2xl p-5 text-center text-xs text-stone-500">
+                        No Google Tasks in this view.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = visible.map(task => {
+                const isOverdue = !task.completed && task.isOverdue;
+                const rowStyle = task.completed
+                    ? 'bg-stone-100/80 border-stone-200 opacity-75'
+                    : isOverdue
+                        ? 'bg-rose-50/60 border-rose-200'
+                        : 'bg-white border-stone-200';
+
+                const dueStyle = isOverdue
+                    ? 'bg-coral text-white'
+                    : task.completed
+                        ? 'bg-emerald-50 text-emeraldDeep'
+                        : 'bg-amber-50 text-amber-950 border border-amber-200';
+
+                return `
+                    <div class="flex items-start justify-between gap-2.5 p-3 rounded-2xl border ${rowStyle} shadow-2xs transition">
+                        <button onclick="toggleTask('${escapeHtml(task.id)}')" aria-label="Toggle Task Complete"
+                            class="mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition ${task.completed ? 'bg-emeraldDeep border-emeraldDeep text-white' : isOverdue ? 'bg-white border-coral' : 'bg-white border-stone-400'}">
+                            ${task.completed ? '<i data-lucide="check" class="w-3.5 h-3.5 stroke-[3]"></i>' : ''}
+                        </button>
+                        <div onclick="toggleTask('${escapeHtml(task.id)}')" class="flex-1 min-w-0 cursor-pointer">
+                            <p class="text-xs sm:text-sm font-semibold leading-snug ${task.completed ? 'line-through text-stone-400' : 'text-indigoDeep'}">
+                                ${escapeHtml(task.title)}
+                            </p>
+                            <div class="flex items-center flex-wrap gap-1.5 mt-1.5">
+                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 text-indigoDeep border border-indigo-200">
+                                    ${escapeHtml(task.listTitle)}
+                                </span>
+                                <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold ${dueStyle}">
+                                    ${escapeHtml(task.dueLabel)}
+                                </span>
+                            </div>
+                        </div>
+                        <button onclick="deleteTask('${escapeHtml(task.id)}')" aria-label="Delete Task"
+                            class="p-1.5 rounded-xl text-stone-400 hover:text-coral hover:bg-stone-100 transition">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function computeDueMetadata(duePreset) {
+            const d = new Date();
+            if (duePreset === 'tomorrow') {
+                d.setDate(d.getDate() + 1);
+            } else if (duePreset === 'overdue') {
+                d.setDate(d.getDate() - 1);
+            }
+            const rfc3339 = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0)).toISOString();
+            const isOverdue = duePreset === 'overdue';
+            const dueLabel = duePreset === 'overdue' ? 'Overdue • Yesterday' : (duePreset === 'tomorrow' ? 'Tomorrow' : 'Today');
+            return { rfc3339, isOverdue, dueLabel };
+        }
+
+        // Create Task (POST to Google Tasks API if authenticated, else demo storage)
+        document.getElementById('quick-add-task-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const titleInput = document.getElementById('new-task-title');
+            const listId = document.getElementById('new-task-list').value;
+            const duePreset = document.getElementById('new-task-due').value;
+            const title = titleInput.value.trim();
+            if (!title) return;
+
+            const listObj = taskLists.find(l => l.id === listId) || taskLists[0];
+            const { rfc3339, isOverdue, dueLabel } = computeDueMetadata(duePreset);
+            titleInput.value = '';
+
+            if (accessToken) {
+                try {
+                    const created = await googleApiFetch(`/lists/${encodeURIComponent(listObj.id)}/tasks`, {
+                        method: 'POST',
+                        body: JSON.stringify({ title, due: rfc3339, status: 'needsAction' })
+                    });
+                    tasks.unshift({
+                        id: created.id,
+                        listId: listObj.id,
+                        listTitle: listObj.title,
+                        title: created.title,
+                        isOverdue,
+                        dueLabel,
+                        completed: false
+                    });
+                    renderTasks();
+                    updateBotBubblePreview();
+                    showToast(`Saved to Google Tasks (${listObj.title})`);
+                } catch (err) {
+                    showToast('Could not create task on Google Tasks');
+                }
+            } else {
+                tasks.unshift({
+                    id: 'demo_' + Date.now(),
+                    listId: listObj.id,
+                    listTitle: listObj.title,
+                    title,
+                    isOverdue,
+                    dueLabel,
+                    completed: false
+                });
+                localStorage.setItem(STORAGE_KEYS.DEMO_TASKS, JSON.stringify(tasks));
+                renderTasks();
+                updateBotBubblePreview();
+                showToast(`Added to ${listObj.title} (Demo Mode)`);
+            }
+        });
+
+        // Toggle Task Complete (PATCH to Google Tasks API if authenticated)
+        async function toggleTask(taskId) {
+            const target = tasks.find(t => t.id === taskId);
+            if (!target) return;
+
+            const nextCompleted = !target.completed;
+            target.completed = nextCompleted;
+            target.dueLabel = nextCompleted ? 'Done' : (target.isOverdue ? 'Overdue' : 'Today');
+            renderTasks();
+            updateBotBubblePreview();
+
+            if (accessToken) {
+                try {
+                    await googleApiFetch(`/lists/${encodeURIComponent(target.listId)}/tasks/${encodeURIComponent(target.id)}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            status: nextCompleted ? 'completed' : 'needsAction',
+                            completed: nextCompleted ? new Date().toISOString() : null
+                        })
+                    });
+                    showToast(nextCompleted ? 'Marked complete in Google Tasks' : 'Reopened in Google Tasks');
+                } catch (err) {
+                    // Revert on error
+                    target.completed = !nextCompleted;
+                    renderTasks();
+                    showToast('Sync error updating task status');
+                }
+            } else {
+                localStorage.setItem(STORAGE_KEYS.DEMO_TASKS, JSON.stringify(tasks));
+            }
+        }
+
+        // Delete Task (DELETE on Google Tasks API if authenticated)
+        async function deleteTask(taskId) {
+            const idx = tasks.findIndex(t => t.id === taskId);
+            if (idx === -1) return;
+            const [removed] = tasks.splice(idx, 1);
+            renderTasks();
+            updateBotBubblePreview();
+
+            if (accessToken) {
+                try {
+                    await googleApiFetch(`/lists/${encodeURIComponent(removed.listId)}/tasks/${encodeURIComponent(removed.id)}`, {
+                        method: 'DELETE'
+                    });
+                    showToast('Deleted from Google Tasks');
+                } catch (err) {
+                    tasks.splice(idx, 0, removed);
+                    renderTasks();
+                    showToast('Failed to delete task from Google');
+                }
+            } else {
+                localStorage.setItem(STORAGE_KEYS.DEMO_TASKS, JSON.stringify(tasks));
+                showToast('Task deleted');
+            }
+        }
+
+        // Quick Import Modal
+        function openQuickImportModal() {
+            document.getElementById('quick-import-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeQuickImportModal() {
+            document.getElementById('quick-import-modal').classList.add('hidden');
+        }
+
+        async function executeQuickImport() {
+            const raw = document.getElementById('raw-tasks-textarea').value.trim();
+            if (!raw) return;
+            const listId = document.getElementById('import-list-select').value;
+            const duePreset = document.getElementById('import-due-select').value;
+            const listObj = taskLists.find(l => l.id === listId) || taskLists[0];
+            const { rfc3339, isOverdue, dueLabel } = computeDueMetadata(duePreset);
+
+            const lines = raw.split('\n').map(l => l.replace(/^[-*•\[\]xX\s]+/, '').trim()).filter(Boolean);
+            document.getElementById('raw-tasks-textarea').value = '';
+            closeQuickImportModal();
+
+            for (const line of lines.reverse()) {
+                if (accessToken) {
+                    try {
+                        const created = await googleApiFetch(`/lists/${encodeURIComponent(listObj.id)}/tasks`, {
+                            method: 'POST',
+                            body: JSON.stringify({ title: line, due: rfc3339, status: 'needsAction' })
+                        });
+                        tasks.unshift({
+                            id: created.id,
+                            listId: listObj.id,
+                            listTitle: listObj.title,
+                            title: created.title,
+                            isOverdue,
+                            dueLabel,
+                            completed: false
+                        });
+                    } catch (e) {
+                        console.error(e);
+                    }
+                } else {
+                    tasks.unshift({
+                        id: `imp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                        listId: listObj.id,
+                        listTitle: listObj.title,
+                        title: line,
+                        isOverdue,
+                        dueLabel,
+                        completed: false
+                    });
+                }
+            }
+
+            if (!accessToken) {
+                localStorage.setItem(STORAGE_KEYS.DEMO_TASKS, JSON.stringify(tasks));
+            }
+            renderTasks();
+            updateBotBubblePreview();
+            showToast(`Imported ${lines.length} tasks into ${listObj.title}`);
+        }
+
+        // =========================================================================
+        // 5. SECTION 2: HEADLINES & BREAKING (INDIAN EXPRESS & THE HINDU)
+        // =========================================================================
+        function setNewsFilter(filter) {
+            currentNewsFilter = filter;
+            document.querySelectorAll('.news-pill').forEach(btn => {
+                const active = btn.dataset.nfilter === filter;
+                btn.className = active
+                    ? 'news-pill px-3 py-1.5 rounded-xl text-xs font-bold bg-indigoDeep text-white transition'
+                    : 'news-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 transition';
+            });
+            renderHeadlines();
+        }
+
+        function renderHeadlines() {
+            const filtered = currentNewsFilter === 'ALL'
+                ? headlinesData
+                : headlinesData.filter(n => n.source === currentNewsFilter);
+
+            document.getElementById('news-container').innerHTML = filtered.map(item => `
+                <article class="bg-white border border-stone-200 rounded-2xl p-3.5 shadow-2xs">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold border ${item.tagClass}">
+                                ${item.source}
+                            </span>
+                            <span class="text-[11px] font-medium text-stone-500">${item.section}</span>
+                        </div>
+                        <span class="text-[10px] text-stone-400 whitespace-nowrap">${item.time}</span>
+                    </div>
+                    <h3 class="font-editorial text-[15px] sm:text-base font-bold text-indigoDeep leading-snug">
+                        ${item.headline}
+                    </h3>
+                    <p class="text-xs text-stone-600 mt-1.5 leading-relaxed">
+                        ${item.summary}
+                    </p>
+                </article>
+            `).join('');
+        }
+
+        // =========================================================================
+        // 6. SECTION 3: GITA & RAMAYANA WISDOM
+        // =========================================================================
+        function setWisdomFilter(filter) {
+            currentWisdomFilter = filter;
+            currentWisdomIndex = 0;
+            document.querySelectorAll('.wisdom-pill').forEach(btn => {
+                const active = btn.dataset.wfilter === filter;
+                btn.className = active
+                    ? 'wisdom-pill px-3 py-1.5 rounded-xl text-xs font-bold bg-saffron text-white transition'
+                    : 'wisdom-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-stone-700 border border-stone-200 transition';
+            });
+            renderWisdom();
+            updateBotBubblePreview();
+        }
+
+        function getActiveWisdomPool() {
+            return currentWisdomFilter === 'ALL'
+                ? wisdomVerses
+                : wisdomVerses.filter(v => v.scripture === currentWisdomFilter);
+        }
+
+        function nextShloka(silent = false) {
+            const pool = getActiveWisdomPool();
+            currentWisdomIndex = (currentWisdomIndex + 1) % pool.length;
+            renderWisdom();
+            updateBotBubblePreview();
+            if (!silent) showToast('Next Shloka loaded');
+        }
+
+        function renderWisdom() {
+            const pool = getActiveWisdomPool();
+            const q = pool[currentWisdomIndex % pool.length];
+            document.getElementById('wisdom-badge').textContent = q.reference;
+            document.getElementById('wisdom-category-tag').textContent = q.scripture;
+            document.getElementById('wisdom-verse').textContent = q.verse;
+            document.getElementById('wisdom-translit').textContent = q.transliteration;
+            document.getElementById('wisdom-hindi').textContent = q.hindi;
+        }
+
+        // =========================================================================
+        // 7. SECTION 4: AUTOMATED 1-HOUR WHATSAPP SELF-REMINDER & APPS SCRIPT
+        // =========================================================================
+        function loadReminderConfig() {
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.CONFIG));
+            if (!saved) return;
+            document.getElementById('wa-phone-input').value = saved.phone || '+91 98765 43210';
+            document.getElementById('wa-start-time').value = saved.start || '07:00';
+            document.getElementById('wa-end-time').value = saved.end || '23:00';
+            document.getElementById('master-push-toggle').checked = saved.master !== false;
+            document.getElementById('toggle-tasks-mod').checked = saved.tasksMod !== false;
+            document.getElementById('toggle-news-mod').checked = saved.newsMod !== false;
+            document.getElementById('toggle-wisdom-mod').checked = saved.wisdomMod !== false;
+        }
+
+        function saveReminderConfig() {
+            const cfg = {
+                phone: document.getElementById('wa-phone-input').value.trim() || '+91 98765 43210',
+                start: document.getElementById('wa-start-time').value,
+                end: document.getElementById('wa-end-time').value,
+                master: document.getElementById('master-push-toggle').checked,
+                tasksMod: document.getElementById('toggle-tasks-mod').checked,
+                newsMod: document.getElementById('toggle-news-mod').checked,
+                wisdomMod: document.getElementById('toggle-wisdom-mod').checked
+            };
+            localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(cfg));
+            document.getElementById('header-recipient-label').textContent = `Auto-reminder to ${cfg.phone} • Every 1 Hr`;
+            updateBotBubblePreview();
+            renderAppsScriptTemplate();
+        }
+
+        function updateBotBubblePreview() {
+            const phone = document.getElementById('wa-phone-input').value.trim() || '+91 98765 43210';
+            document.getElementById('header-recipient-label').textContent = `Auto-reminder to ${phone} • Every 1 Hr`;
+
+            const incTasks = document.getElementById('toggle-tasks-mod').checked;
+            const incNews = document.getElementById('toggle-news-mod').checked;
+            const incWisdom = document.getElementById('toggle-wisdom-mod').checked;
+
+            const timeNow = new Date().toLocaleTimeString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+            document.getElementById('bubble-timestamp').textContent = timeNow;
+
+            const sections = [`⏰ *Hourly Digest (${timeNow} IST)*`];
+
+            if (incTasks) {
+                const overdueList = tasks.filter(t => !t.completed && t.isOverdue);
+                const todayList = tasks.filter(t => !t.completed && !t.isOverdue);
+                const doneCount = tasks.filter(t => t.completed).length;
+
+                const overdueLines = overdueList.map(t => `  🔴 [${t.listTitle}] ${t.title}`).join('\n');
+                const todayLines = todayList.map(t => `  🟡 [${t.listTitle}] ${t.title}`).join('\n');
+
+                sections.push(
+`☑️ *Google Tasks (${doneCount}/${tasks.length} Done | ${overdueList.length} Overdue)*
+${overdueLines ? overdueLines + '\n' : ''}${todayLines || '  ✅ All tasks completed!'}`
+                );
+            }
+
+            if (incNews) {
+                sections.push(
+`📰 *Headlines (IE & The Hindu)*
+• *Indian Express:* ${headlinesData[0].headline}
+• *The Hindu:* ${headlinesData[1].headline}`
+                );
+            }
+
+            if (incWisdom) {
+                const pool = getActiveWisdomPool();
+                const q = pool[currentWisdomIndex % pool.length];
+                sections.push(
+`🕉️ *${q.reference}*
+_${q.verse.replace(/\n/g, ' / ')}_
+*अर्थ:* ${q.hindi}`
+                );
+            }
+
+            document.getElementById('live-bot-bubble').textContent = sections.join('\n\n');
+        }
+
+        function triggerTestPing() {
+            const phone = document.getElementById('wa-phone-input').value.trim() || '+91 98765 43210';
+            const overdueCount = tasks.filter(t => !t.completed && t.isOverdue).length;
+            const todayCount = tasks.filter(t => !t.completed && !t.isOverdue).length;
+
+            document.getElementById('banner-recipient').textContent = `Delivered to ${phone} (Incoming Bot Push)`;
+            document.getElementById('banner-snippet').textContent =
+                `⏰ Google Tasks: ${overdueCount} Overdue, ${todayCount} Today • IE & The Hindu updates • Gita Shloka with Hindi meaning.`;
+
+            const banner = document.getElementById('incoming-wa-banner');
+            banner.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function dismissIncomingBanner() {
+            document.getElementById('incoming-wa-banner').classList.add('hidden');
+        }
+
+        function renderAppsScriptTemplate() {
+            const rawPhone = document.getElementById('wa-phone-input').value.replace(/\D/g, '') || '919876543210';
+            const startHour = parseInt((document.getElementById('wa-start-time').value || '07:00').split(':')[0], 10);
+            const endHour = parseInt((document.getElementById('wa-end-time').value || '23:00').split(':')[0], 10);
+
+            document.getElementById('apps-script-code').textContent =
+`/**
+ * Background 1-Hour WhatsApp Reminder (Google Apps Script)
+ * 1. Enable Services (+) -> Google Tasks API
+ * 2. Set a Time-driven Trigger -> Hour timer -> Every hour on sendHourlyDigest()
+ */
+const WHATSAPP_PHONE = "${rawPhone}";
+const CALLMEBOT_API_KEY = "YOUR_CALLMEBOT_API_KEY";
+const ACTIVE_START_HOUR = ${startHour}; // IST
+const ACTIVE_END_HOUR = ${endHour};   // IST
+
+function fetchRssTop_(rssUrl) {
+  try {
+    const xml = UrlFetchApp.fetch(rssUrl).getContentText();
+    const doc = XmlService.parse(xml);
+    const item = doc.getRootElement().getChild('channel').getChild('item');
+    return item ? item.getChildText('title').trim() : 'Latest headline';
+  } catch (e) {
+    return 'Check latest edition';
+  }
+}
+
+function sendHourlyDigest() {
+  const istHour = Number(Utilities.formatDate(new Date(), "Asia/Kolkata", "H"));
+  if (istHour < ACTIVE_START_HOUR || istHour > ACTIVE_END_HOUR) return;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const lists = Tasks.Tasklists.list().items || [];
+  let doneCount = 0, totalCount = 0;
+  const overdue = [], pending = [];
+
+  lists.forEach(list => {
+    const items = Tasks.Tasks.list(list.id, { showCompleted: true, showHidden: false }).items || [];
+    items.forEach(t => {
+      if (!t.title) return;
+      totalCount++;
+      if (t.status === 'completed') {
+        doneCount++;
+      } else {
+        const due = t.due ? new Date(t.due) : null;
+        if (due && due < todayStart) overdue.push(\`  🔴 [\${list.title}] \${t.title}\`);
+        else pending.push(\`  🟡 [\${list.title}] \${t.title}\`);
+      }
+    });
+  });
+
+  const ieTop = fetchRssTop_("https://indianexpress.com/section/india/feed/");
+  const hinduTop = fetchRssTop_("https://www.thehindu.com/news/national/feeder/default.rss");
+
+  const shlokas = [
+    "कर्मण्येवाधिकारस्ते मा फलेषु कदाचन।\\nअर्थ: तुम्हारा अधिकार केवल कर्म करने में है, फल की इच्छा में नहीं। (गीता 2.47)",
+    "प्रबिसि नगर कीजे सब काजा। हृदयँ राखि कोसलपुर राजा॥\\nअर्थ: प्रभु श्रीराम का स्मरण कर सभी कार्य आरंभ करें, सफलता अवश्य मिलेगी। (सुन्दरकाण्ड)"
+  ];
+
+  const msg = [
+    \`⏰ *Hourly Digest (\${istHour}:00 IST)*\`,
+    \`☑️ *Google Tasks:* \${doneCount}/\${totalCount} Done | 🔴 \${overdue.length} Overdue\`,
+    ...overdue,
+    ...pending.slice(0, 5),
+    \`\\n📰 *Headlines:*\\n• *IE:* \${ieTop}\\n• *The Hindu:* \${hinduTop}\`,
+    \`\\n🕉️ *प्रेरणा:*\\n\${shlokas[istHour % shlokas.length]}\`
+  ].join("\\n");
+
+  const url = \`https://api.callmebot.com/whatsapp.php?phone=\${WHATSAPP_PHONE}&text=\${encodeURIComponent(msg)}&apikey=\${CALLMEBOT_API_KEY}\`;
+  UrlFetchApp.fetch(url);
+}`;
+        }
+
+        function copyAppsScriptCode() {
+            const code = document.getElementById('apps-script-code').textContent;
+            const ta = document.createElement('textarea');
+            ta.value = code;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast('Apps Script copied! Paste into script.google.com');
+            } catch (err) {
+                showToast('Unable to copy script');
+            }
+            document.body.removeChild(ta);
+        }
+
+        // =========================================================================
+        // 8. UTILITIES
+        // =========================================================================
+        function showToast(message) {
+            const stack = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-indigoDeep text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg border border-indigo-800 text-center transition-opacity duration-300';
+            toast.textContent = message;
+            stack.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
